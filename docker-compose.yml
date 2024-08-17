@@ -1,9 +1,8 @@
-version: '3'
-
 services:
-  app:
+  mongo:
     build: .
+    image: mongodb
     ports:
-      - "8080:8080"
+      - "5432:5432"
     environment:
       - MONGO_URI=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST}/
