@@ -1,0 +1,259 @@
+treino echo / mongo
+
+https://dev.to/hackmamba/build-a-rest-api-with-golang-and-mongodb-echo-version-2gdg
+
+
+-----------------------------
+
+preparando ambiente
+
+-----------------------------
+
+mkdir echo-mongo-api && cd echo-mongo-api
+
+go mod init echo-mongo-api
+
+go get -u ...
+
+github.com/labstack/echo/v4   (framework)
+
+go.mongodb.org/mongo-driver/mongo  (driver mongo)
+
+github.com/joho/godotenv  (gerenciar variaveis de environment)
+
+github.com/go-playground/validator/v10 (validador de structs e fields)
+
+-----------------------------
+
+entry point
+
+-----------------------------
+
+package main
+
+import (
+    "github.com/labstack/echo/v4"
+)
+
+func main() {
+    e := echo.New()
+
+    e.GET("/", func(c echo.Context) error {
+          return c.JSON(200, &echo.Map{"data": "Hello from Echo & mongoDB"})
+    })
+
+    e.Logger.Fatal(e.Start(":6000"))
+    
+
+-
+
+Use the Get function to route to / path and an handler function that returns a JSON of Hello from Echo & mongoDB. 
+
+echo.Map is a shortcut for map[string]interface{}, useful for JSON returns.
+
+-----------------------------
+
+Modularization in Golang
+
+-----------------------------
+
+configs: project configuration files
+
+controllers: application logics.
+
+models: data and database logics.
+
+responses: files describing the response we want our API to give. This will become clearer later on.
+
+routes: URL pattern and handler information.
+
+-----------------------------
+
+environment variables
+
+-----------------------------
+
+.env
+
+MONGOURI=mongodb+srv://<YOUR USERNAME HERE>:<YOUR PASSWORD HERE>@cluster0.e5akf.mongodb.net/myFirstDatabese?retryWrites=true&w=majority
+
+carregando a variavel MONGOURI
+
+criar arquivo no package configs
+
+-
+
+configs/env.go
+
+carregar as variaveis de ambiente:
+
+package configs
+
+import (
+	"log"
+	"os"
+
+	"github.com/joho/godotenv"
+)
+
+func EnvMongoURI() string {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	return os.Getenv("MONGOURI")
+}
+
+-
+
+-----------------------------
+
+conexão DB
+
+-----------------------------
+
+
+configs/setup.go
+
+criação de conexão com o banco
+
+tanto cria a conexão, quanto cria uma variavel que utiliz a conexao e posteriormente utiliza em uma função para ler todos os dados (get)
+
+package configs
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+func ConnectDB() *mongo.Client {
+	client, err := mongo.NewClient(options.Client().ApplyURI(EnvMongoURI()))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = client.Connect(ctx)
+	if err != nil{
+		log.Fatal(err)
+	}
+
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Connected do MongoDB")
+
+	return &mongo.Client{}
+}
+
+var DB *mongo.Client = ConnectDB()
+
+func GetCollection(client *mongo.Client, collectionName string) *mongo.Collection {
+	collection := client.Database("projetos").Collection(collectionName)
+	return collection
+}
+
+-
+
+é necessário chamar a função ConnectDB na main, para que seja inicializado assim que a aplicação iniciar também.
+
+adicionar na main: 
+
+configs.ConnectDB()
+
+-----------------------------
+
+routes
+
+-----------------------------
+
+routes/user_route.go
+
+package routes
+
+import "github.com/labstack/echo/v4"
+
+func UserRoute(e *echo.Echo)  {
+	// all routes for user
+}
+
+-
+
+adicionar no main
+
+routes.UserRoute(e)
+
+-
+-----------------------------
+
+responses
+
+-----------------------------
+
+temos o inicio de uma rota, mas ela tem que bater em alguma resposta
+
+então temos que criar um response para a rota
+
+iremos criar uma struct com tags indicando qual vai ser o formato da resposta
+
+package responses
+
+import "github.com/labstack/echo/v4"
+
+type UserResponse struct {
+	Status  int       `json:"status"`
+	Message string    `json:"message"`
+	Data    *echo.Map `json:"data"`
+}
+
+
+-----------------------------
+
+model
+
+-----------------------------
+
+models e responses se interrelacionam
+
+model é o formato que o banco de dados esta estruturado, de forma que os dados que vierem serão salvos no db no formato indicado pelo model
+
+mas response indica a forma como esses dados serão recuperados, ou seja, quando um serviço for buscar algo no banco de dados, irá retornar no formato do responses
+
+package models
+
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
+type User struct {
+	Id       primitive.ObjectID `json:"id,omitempty"`
+	Name     string             `json:"name,omitempty" validate:"required"`
+	Location string             `json:"location,omitempty" validade:"required"`
+	Title    string             `json:"title,omitempty" validate:"required"`
+}
+
+
+-----------------------------
+
+endpoint
+
+-----------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
