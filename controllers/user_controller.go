@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -57,5 +58,83 @@ func CreateUser(c echo.Context) error {
 		Status: http.StatusCreated,
 		Message: "success",
 		Data: &echo.Map{"data": result},
+	})
+}
+
+func GetAUser(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	userId := c.Param("userId")
+	var user models.User
+	defer cancel()
+
+	objId, _ := primitive.ObjectIDFromHex(userId)
+
+	err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()},
+		})
+	}
+	return c.JSON(http.StatusCreated, responses.UserResponse{
+		Status: http.StatusCreated,
+		Message: "success",
+		Data: &echo.Map{"data": user},
+	})
+}
+
+func UpdateAUser(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	userId := c.Param("userId")
+	var user models.User
+	defer cancel()
+
+	objId, _ := primitive.ObjectIDFromHex(userId)
+
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()}})
+	}
+
+	if validationErr := validate.Struct(&user); validationErr != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest,
+			Message: "error",
+			Data: &echo.Map{"data": validationErr.Error()},
+		})
+	}
+
+	update := bson.M{
+		"name": user.Name,
+		"location": user.Location,
+		"title": user.Title,
+	}
+
+	result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": update})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, responses.UserResponse{
+			Status: http.StatusInternalServerError, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()}})
+	}
+
+	var updatedUser models.User
+	if result.MatchedCount == 1 {
+		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&updatedUser)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, responses.UserResponse{
+				Status: http.StatusInternalServerError, 
+				Message: "error", 
+				Data: &echo.Map{"data": err.Error()}})
+		}
+	}
+
+	return c.JSON(http.StatusOK, responses.UserResponse{
+		Status: http.StatusOK,
+		Message: "success",
+		Data: &echo.Map{"data": updatedUser},
 	})
 }

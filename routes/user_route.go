@@ -1,7 +1,12 @@
 package routes
 
-import "github.com/labstack/echo/v4"
+import (
+	"echo-mongo/controllers"
+
+	"github.com/labstack/echo/v4"
+)
 
 func UserRoute(e *echo.Echo)  {
-	// all routes for user
+	e.POST("/user", controllers.CreateUser)
+	e.GET("/user/:userId", controllers.GetAUser)
 }

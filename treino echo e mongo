@@ -227,6 +227,12 @@ model é o formato que o banco de dados esta estruturado, de forma que os dados 
 
 mas response indica a forma como esses dados serão recuperados, ou seja, quando um serviço for buscar algo no banco de dados, irá retornar no formato do responses
 
+o validate required é para utilização em conjunto com uma biblioteca chamada validator
+
+a finalidade do validator é checar se os dados enviados condizem com o esperado pelo model, previnindo erros e inconsistências.
+
+no controller, se a validação não der certo, vai retornar um erro 400 bad request
+
 package models
 
 import "go.mongodb.org/mongo-driver/bson/primitive"
@@ -241,14 +247,122 @@ type User struct {
 
 -----------------------------
 
-endpoint
+user endpoint - CREATE
 
 -----------------------------
 
+a utilização do validator serve para garantir que os dados recebidos estejam nos moldes indicados do models
+
+o defer serve para deixar para o final a execução de algum codigo
+
+no caso está sendo atrasada a execução do cancel() que é uma função criada para limpar os dados do contexto, ou seja, para encerrar as transações realizadas
+
+isso serve para evitar vazamento de recursos e travamentos do sistema, assegurando a responsividade do sistema
+
+package controllers
+
+import (
+	"context"
+	"echo-mongo/configs"
+	"echo-mongo/models"
+	"echo-mongo/responses"
+	"net/http"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "users")
+var validate = validator.New()
+
+func CreateUser(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	var user models.User
+	defer cancel()
+
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()}})
+	}
+
+	if validationErr := validate.Struct(&user); validationErr != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest,
+			Message: "error",
+			Data: &echo.Map{"data": validationErr.Error()},
+		})
+	}
+
+	newUser := models.User{
+		Id: primitive.NewObjectID(),
+		Name: user.Name,
+		Location: user.Location,
+		Title: user.Title,
+	}
+
+	result, err := userCollection.InsertOne(ctx, newUser)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, responses.UserResponse{
+			Status: http.StatusBadRequest,
+			Message: "error",
+			Data: &echo.Map{"data": err.Error()},
+		})
+	}
+
+	return c.JSON(http.StatusCreated, responses.UserResponse{
+		Status: http.StatusCreated,
+		Message: "success",
+		Data: &echo.Map{"data": result},
+	})
+}
 
 
+-----------------------------
+
+user endpoint - READ
+
+-----------------------------
+
+a variavei userId está servindo para gravar o parametro "userID" do documento
+
+ObjectIDFromHex é um método para converter a string capturada do http pelo parametro em um tipo de dado mongodb -objectID-
+
+o método Decode serve para unmarshal dados recuperados do banco de dados para a estrutura do model
 
 
+func GetAUser(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	userId := c.Param("userID")
+	var user models.User
+	defer cancel()
+
+	objId, _ := primitive.ObjectIDFromHex(userId)
+
+	err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()},
+		})
+	}
+	return c.JSON(http.StatusCreated, responses.UserResponse{
+		Status: http.StatusCreated,
+		Message: "success",
+		Data: &echo.Map{"data": user},
+	})
+}
+
+-----------------------------
+
+user endpoint - UPDATE
+
+-----------------------------
 
 
 
