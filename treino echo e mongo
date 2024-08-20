@@ -198,11 +198,15 @@ responses
 
 -----------------------------
 
-temos o inicio de uma rota, mas ela tem que bater em alguma resposta
+temos o inicio de uma rota, em seguida vão ser criados os controllers, que são a lógica da aplicação, ou seja, onde vai chegar aquela rota
 
-então temos que criar um response para a rota
+o controller vai fazer alguma coisa e deve dar uma resposta do que foi feito, que pode ser sucesso ou erro
 
-iremos criar uma struct com tags indicando qual vai ser o formato da resposta
+então temos que criar um response para o fim da rota
+
+iremos criar uma struct com tags indicando qual vai ser o formato da resposta, que vai captar e estruturar a resposta, isso irá ajudar a corrigir possíveis erros
+
+response é relacionado às respostas de sucesso e falha ao realizar alguma transação. por exemplo, se tentarmos criar um usuario de forma errada, a aplicação mostra a response indicando que houve um erro e qual é, já se criarmos de forma correta, a response vai informar sucesso.
 
 package responses
 
@@ -364,9 +368,80 @@ user endpoint - UPDATE
 
 -----------------------------
 
+a função de update vai receber o contexto do http
+salvar na variavel userId o parâmetro que for igual a "userId"
+transformar esse parametro em um objeto lido pelo mongodb (ObjectIDFromHex)
+salvar o contexto em um ponteiro - c.Bind(&user)
+validar a estrutura do contexto que foi passado - validate.Struct(&user)
+guarda em uma variavel update os dados salvos do contexto transformando em bson que é lido pelo mongo bson.M{
+	"name": user.Name,
+	"location": user.Location,
+	"title": user.Title,
+}
+so entao é que chama o metodo do mongo - userCollection.UpdateOne - que recebe como parametros o filtro e o que vai ser enviado e passa os dados salvos na variavel - (ctx, bson.M{"id": objId}, bson.M{"$set": update})
 
+finalmente chama uma função para mostrar os novos dados atualizados - userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&updatedUser)
 
+os erros são capturados e retornados se não: 
+1) realizar o Bind
+2) validar a estrutura
+3) conseguir atualizar
+4) conseguir mostrar os dados atualizados
 
+func UpdateAUser(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	userId := c.Param("userId")
+	var user models.User
+	defer cancel()
+
+	objId, _ := primitive.ObjectIDFromHex(userId)
+
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()}})
+	}
+
+	if validationErr := validate.Struct(&user); validationErr != nil {
+		return c.JSON(http.StatusBadRequest, responses.UserResponse{
+			Status: http.StatusBadRequest,
+			Message: "error",
+			Data: &echo.Map{"data": validationErr.Error()},
+		})
+	}
+
+	update := bson.M{
+		"name": user.Name,
+		"location": user.Location,
+		"title": user.Title,
+	}
+
+	result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": update})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, responses.UserResponse{
+			Status: http.StatusInternalServerError, 
+			Message: "error", 
+			Data: &echo.Map{"data": err.Error()}})
+	}
+
+	var updatedUser models.User
+	if result.MatchedCount == 1 {
+		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&updatedUser)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, responses.UserResponse{
+				Status: http.StatusInternalServerError, 
+				Message: "error", 
+				Data: &echo.Map{"data": err.Error()}})
+		}
+	}
+
+	return c.JSON(http.StatusOK, responses.UserResponse{
+		Status: http.StatusOK,
+		Message: "success",
+		Data: &echo.Map{"data": updatedUser},
+	})
+}
 
 
 
