@@ -15,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "users")
+var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "filmes")
 var validate = validator.New()
 
 func CreateUser(c echo.Context) error {
@@ -40,9 +40,9 @@ func CreateUser(c echo.Context) error {
 
 	newUser := models.User{
 		Id: primitive.NewObjectID(),
-		Name: user.Name,
-		Location: user.Location,
-		Title: user.Title,
+		Titulo: user.Titulo,
+		Ano: user.Ano,
+		Diretor: user.Diretor,
 	}
 
 	result, err := userCollection.InsertOne(ctx, newUser)
@@ -108,9 +108,9 @@ func UpdateAUser(c echo.Context) error {
 	}
 
 	update := bson.M{
-		"name": user.Name,
-		"location": user.Location,
-		"title": user.Title,
+		"Titulo": user.Titulo,
+		"Ano": user.Ano,
+		"Diretor": user.Diretor,
 	}
 
 	result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": update})

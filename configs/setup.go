@@ -29,12 +29,17 @@ func ConnectDB() *mongo.Client {
 
 	fmt.Println("Connected do MongoDB")
 
-	return &mongo.Client{}
+	return client
 }
 
 var DB *mongo.Client = ConnectDB()
 
 func GetCollection(client *mongo.Client, collectionName string) *mongo.Collection {
-	collection := client.Database("projetos").Collection(collectionName)
+	if DB == nil {
+		log.Fatal("DB client is nil")
+	}
+
+	collection := DB.Database("projetos").Collection(collectionName)
+	// collection := client.Database("projetos").Collection(collectionName)
 	return collection
 }
